@@ -10,16 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="style.css">
-    <script>
-        window.LOST_FOUND_APP_CONFIG = window.LOST_FOUND_APP_CONFIG || {
-            supabaseUrl: "https://cavrqiykwnfrxtrihfrd.supabase.co",
-            supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhdnJxaXlrd25mcnh0cmloZnJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MDUzMzQsImV4cCI6MjA4OTI4MTMzNH0.6-1GeFUYxaOHGmx02gpvzk7hgAhqmvrOg4HEcjq8zSU"
-        };
-    </script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script defer src="script.js"></script>
 </head>
 <body>
@@ -91,7 +84,7 @@
                 </article>
                 <article class="stat-card">
                     <p class="stat-card__label">History mode</p>
-                    <strong id="syncModeValue">Local only</strong>
+                    <strong id="syncModeValue">Browser storage</strong>
                 </article>
                 <article class="stat-card">
                     <p class="stat-card__label">Map destination</p>
@@ -148,7 +141,10 @@
                     </article>
                 </div>
 
-                <div id="map" class="map-frame" aria-label="Interactive map"></div>
+                <div class="map-shell">
+                    <button id="centerMapLocationBtn" class="map-location-btn" type="button">My location</button>
+                    <div id="map" class="map-frame" aria-label="Interactive map"></div>
+                </div>
 
                 <div class="map-note-card">
                     <p class="map-note-card__title">Advice</p>
@@ -181,7 +177,6 @@
 
                 <div class="scanner-actions">
                     <button id="startScannerBtn" class="primary-btn" type="button">Open camera</button>
-                    <button id="stopScannerBtn" class="secondary-btn" type="button">Stop camera</button>
                     <button id="uploadQrBtn" class="secondary-btn" type="button">Upload QR image</button>
                     <input id="qrFileInput" type="file" accept="image/*" hidden>
                 </div>
@@ -281,7 +276,7 @@
                 <p class="eyebrow">About us</p>
                 <h3>Built for honest, fast returns</h3>
                 <p>KindReturn QR helps a finder reach the owner quickly by combining contact details, map guidance, and a mobile-friendly scan flow in one lightweight web app.</p>
-                <p>The app is designed for simple deployment on Vercel with optional Supabase storage for scan history.</p>
+                <p>The app stores scan history in the user's browser so it works without a database setup.</p>
             </div>
         </section>
 
@@ -360,7 +355,7 @@
         <div class="modal__card">
             <p class="eyebrow">Delete record</p>
             <h3 id="deleteModalTitle">Remove this history item?</h3>
-            <p>This deletes the selected record from the app and from Supabase too if sync is enabled.</p>
+            <p>This deletes the selected record from this browser's saved history.</p>
             <div class="modal__actions">
                 <button id="cancelDeleteBtn" class="secondary-btn" type="button">Cancel</button>
                 <button id="confirmDeleteBtn" class="danger-btn" type="button">Delete</button>

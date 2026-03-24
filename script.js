@@ -1,6 +1,5 @@
 // Storage keys and QR sizing constants used across the app.
 const STORAGE_KEYS = {
-    deviceId: "kindreturn-device-id",
     history: "kindreturn-history-v1"
 };
 
@@ -20,7 +19,6 @@ const KINDNESS_MESSAGES = [
 // Runtime app state for the single-page flow.
 const state = {
     activeSection: "home",
-    deviceId: getOrCreateDeviceId(),
     history: [],
     currentQrData: null,
     currentLocation: null,
@@ -32,7 +30,6 @@ const state = {
     scanner: null,
     scannerRunning: false,
     pendingDeleteId: null,
-    supabase: null,
     toastTimer: null,
     kindnessIntervalId: null,
     kindnessSwapTimeoutId: null
@@ -47,7 +44,6 @@ document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
     initMap();
     loadLocalHistory();
-    initSupabase();
     renderHistory();
     updateHomeStats();
     setRandomKindnessMessage(false, false);
@@ -92,6 +88,7 @@ function bindEvents() {
         startKindnessRotation();
     });
     document.getElementById("refreshLocationBtn").addEventListener("click", () => ensureCurrentLocation(true));
+    document.getElementById("centerMapLocationBtn").addEventListener("click", centerMapOnCurrentLocation);
 
     document.querySelectorAll("[data-nav-section]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -101,7 +98,6 @@ function bindEvents() {
     });
 
     document.getElementById("startScannerBtn").addEventListener("click", startCameraScanner);
-    document.getElementById("stopScannerBtn").addEventListener("click", stopScanner);
     document.getElementById("uploadQrBtn").addEventListener("click", () => refs.qrFileInput.click());
     refs.qrFileInput.addEventListener("change", handleQrImageUpload);
 
@@ -138,7 +134,10 @@ function setActiveSection(section) {
         stopScanner();
     }
     if (section === "maps" && state.map) {
-        window.setTimeout(() => state.map.invalidateSize(), 140);
+        window.setTimeout(() => {
+            state.map.invalidateSize();
+            pinCurrentLocationOnMap();
+        }, 140);
     }
 }
 
@@ -188,22 +187,16 @@ function initMap() {
     L.control.zoom({ position: "topright" }).addTo(state.map);
 }
 
-// Supabase sync is optional; local history remains the fallback.
-function initSupabase() {
-    const config = window.LOST_FOUND_APP_CONFIG || {};
-    if (window.supabase?.createClient && config.supabaseUrl && config.supabaseAnonKey) {
-        state.supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-        refs.syncModeValue.textContent = "Supabase";
-        loadRemoteHistory();
-    } else {
-        refs.syncModeValue.textContent = "Local only";
-    }
-}
-
 function loadLocalHistory() {
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.history)) || [];
-        state.history = Array.isArray(saved) ? saved : [];
+        state.history = Array.isArray(saved)
+            ? saved.map((record) => ({
+                ...record,
+                remoteId: null,
+                syncStatus: "local"
+            }))
+            : [];
     } catch (error) {
         state.history = [];
     }
@@ -211,56 +204,6 @@ function loadLocalHistory() {
 
 function saveLocalHistory() {
     localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(state.history));
-}
-
-async function loadRemoteHistory() {
-    if (!state.supabase) {
-        return;
-    }
-    try {
-        const { data, error } = await state.supabase
-            .from("scan_history")
-            .select("*")
-            .eq("device_id", state.deviceId)
-            .order("scanned_at", { ascending: false })
-            .limit(50);
-        if (error) {
-            throw error;
-        }
-        const remoteRecords = (data || []).map((row) => ({
-            id: row.local_id || row.id,
-            remoteId: row.id,
-            qrCodeId: row.qr_code_id,
-            name: row.item_name || "",
-            scannedAt: row.scanned_at,
-            currentLocationAddress: row.scanner_address || "Location unavailable",
-            scannerLat: row.scanner_lat,
-            scannerLng: row.scanner_lng,
-            qrPayload: row.qr_payload || {},
-            syncStatus: "synced"
-        }));
-        const merged = new Map();
-        [...state.history, ...remoteRecords].forEach((record) => {
-            merged.set(record.remoteId || record.id, record);
-        });
-        state.history = Array.from(merged.values()).sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
-        saveLocalHistory();
-        renderHistory();
-        updateHomeStats();
-    } catch (error) {
-        refs.syncModeValue.textContent = "Local fallback";
-        showToast("Supabase sync unavailable. Using local history.");
-    }
-}
-
-function getOrCreateDeviceId() {
-    const existing = localStorage.getItem(STORAGE_KEYS.deviceId);
-    if (existing) {
-        return existing;
-    }
-    const nextId = `device-${crypto.randomUUID()}`;
-    localStorage.setItem(STORAGE_KEYS.deviceId, nextId);
-    return nextId;
 }
 
 // Location is only requested when the user needs routing or scan-location logging.
@@ -294,6 +237,32 @@ async function ensureCurrentLocation(showFeedback = false) {
             showToast("Unable to access your current location.");
         }
         return null;
+    }
+}
+
+async function centerMapOnCurrentLocation() {
+    const location = await ensureCurrentLocation(true);
+    if (!location || !state.map) {
+        return;
+    }
+
+    renderCurrentLocationMarker();
+    state.map.flyTo([location.lat, location.lng], 15, {
+        duration: 0.8
+    });
+    state.currentMarker?.openPopup();
+}
+
+async function pinCurrentLocationOnMap() {
+    const location = await ensureCurrentLocation(false);
+    if (!location || !state.map) {
+        return;
+    }
+
+    renderCurrentLocationMarker();
+
+    if (!state.currentQrData) {
+        state.map.setView([location.lat, location.lng], 15);
     }
 }
 
@@ -867,11 +836,10 @@ function attachResultActionHandlers() {
     });
 }
 
-// History is stored locally first, then mirrored to Supabase when configured.
+// History is stored locally in the browser so the app works without a backend.
 async function saveScanHistory(qrData) {
     const record = {
         id: crypto.randomUUID(),
-        remoteId: null,
         qrCodeId: qrData.qrId,
         name: qrData.name || "",
         scannedAt: new Date().toISOString(),
@@ -879,7 +847,7 @@ async function saveScanHistory(qrData) {
         scannerLat: state.currentLocation?.lat ?? null,
         scannerLng: state.currentLocation?.lng ?? null,
         qrPayload: qrData,
-        syncStatus: state.supabase ? "syncing" : "local"
+        syncStatus: "local"
     };
 
     state.history.unshift(record);
@@ -887,46 +855,6 @@ async function saveScanHistory(qrData) {
     saveLocalHistory();
     renderHistory();
     updateHomeStats();
-
-    if (state.supabase) {
-        await syncRecordToSupabase(record);
-    }
-}
-
-async function syncRecordToSupabase(record) {
-    try {
-        const payload = {
-            local_id: record.id,
-            device_id: state.deviceId,
-            qr_code_id: record.qrCodeId,
-            item_name: record.name || null,
-            scanned_at: record.scannedAt,
-            scanner_address: record.currentLocationAddress || null,
-            scanner_lat: record.scannerLat,
-            scanner_lng: record.scannerLng,
-            qr_payload: record.qrPayload
-        };
-
-        const { data, error } = await state.supabase
-            .from("scan_history")
-            .insert(payload)
-            .select("id")
-            .single();
-
-        if (error) {
-            throw error;
-        }
-
-        record.remoteId = data.id;
-        record.syncStatus = "synced";
-        saveLocalHistory();
-        renderHistory();
-    } catch (error) {
-        record.syncStatus = "local";
-        refs.syncModeValue.textContent = "Local fallback";
-        saveLocalHistory();
-        renderHistory();
-    }
 }
 
 function renderHistory() {
@@ -990,18 +918,6 @@ async function confirmDeleteHistoryItem() {
     renderHistory();
     updateHomeStats();
     closeDeleteModal();
-
-    if (record?.remoteId && state.supabase) {
-        try {
-            const { error } = await state.supabase.from("scan_history").delete().eq("id", record.remoteId);
-            if (error) {
-                throw error;
-            }
-        } catch (error) {
-            showToast("Deleted locally. Supabase delete failed.");
-            return;
-        }
-    }
 
     showToast("History record deleted.");
 }

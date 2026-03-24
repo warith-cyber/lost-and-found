@@ -351,6 +351,10 @@ a {
     gap: 12px;
 }
 
+.scanner-actions {
+    margin-bottom: 16px;
+}
+
 .card-grid,
 .route-grid {
     display: grid;
@@ -412,6 +416,32 @@ a {
 
 .map-frame {
     min-height: 320px;
+}
+
+.map-shell {
+    position: relative;
+}
+
+.map-location-btn {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 20;
+    min-height: 42px;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.84);
+    border-radius: 14px;
+    background: rgba(255, 252, 248, 0.92);
+    color: var(--brand-700);
+    font-weight: 800;
+    box-shadow: 0 12px 24px rgba(135, 73, 12, 0.14);
+    backdrop-filter: blur(16px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.map-location-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 246, 236, 0.98);
 }
 
 .reader-frame {
@@ -912,6 +942,11 @@ a {
     .generated-actions,
     .modal__actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .scanner-actions {
+        column-gap: 16px;
+        row-gap: 14px;
     }
 
     .generated-layout {
