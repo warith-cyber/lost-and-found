@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KindReturn QR</title>
+    <meta name="description" content="Mobile-first QR generator and scanner for lost and found items with map routing and scan history.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        window.LOST_FOUND_APP_CONFIG = window.LOST_FOUND_APP_CONFIG || {
+            supabaseUrl: "https://cavrqiykwnfrxtrihfrd.supabase.co",
+            supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhdnJxaXlrd25mcnh0cmloZnJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MDUzMzQsImV4cCI6MjA4OTI4MTMzNH0.6-1GeFUYxaOHGmx02gpvzk7hgAhqmvrOg4HEcjq8zSU"
+        };
+    </script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="app-bg" aria-hidden="true"></div>
+
+    <!-- Off-canvas navigation for section switching and static app info -->
+    <aside id="sidebar" class="sidebar" aria-hidden="true">
+        <div class="sidebar__header">
+            <div>
+                <p class="eyebrow">Lost &amp; Found</p>
+                <h1>KindReturn QR</h1>
+            </div>
+            <button id="closeSidebarBtn" class="icon-btn" type="button" aria-label="Close sidebar">
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+
+        <nav class="sidebar__nav" aria-label="Sidebar navigation">
+            <button class="sidebar-link is-active" type="button" data-nav-section="home">Home</button>
+            <button class="sidebar-link" type="button" data-nav-section="maps">Maps</button>
+            <button class="sidebar-link" type="button" data-nav-section="history">History</button>
+            <button class="sidebar-link" type="button" data-nav-section="about">About Us</button>
+            <button class="sidebar-link" type="button" data-nav-section="contact">Contact Us</button>
+        </nav>
+
+        <div class="sidebar__info">
+            <p class="info-title">How it works</p>
+            <p>Generate a QR, attach it to an item, then scan it later to jump to the saved address on the map and contact the owner quickly.</p>
+        </div>
+    </aside>
+    <button id="sidebarOverlay" class="sidebar-overlay" type="button" aria-label="Dismiss sidebar"></button>
+
+    <!-- Main single-page app sections -->
+    <main class="app-shell">
+        <header class="topbar">
+            <button id="openSidebarBtn" class="menu-btn" type="button" aria-label="Open sidebar">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <div class="brand-block">
+                <p class="eyebrow">Mobile-first helper</p>
+                <h2>Return lost items faster</h2>
+            </div>
+
+            <button id="refreshLocationBtn" class="status-pill" type="button">
+                <span class="status-pill__dot"></span>
+                <span id="locationStatusText">Use my location</span>
+            </button>
+        </header>
+
+        <!-- Home / landing content -->
+        <section id="homeSection" class="section-panel is-active" data-panel="home">
+            <div class="hero-card">
+                <div class="hero-card__content">
+                    <p class="eyebrow">Daily reminder</p>
+                    <h3>Do the kind thing.</h3>
+                    <p id="kindnessMessage" class="hero-message">Someone's stress can end because you decided to help.</p>
+                </div>
+                <button id="newMessageBtn" class="ghost-btn" type="button">New message</button>
+            </div>
+
+            <div class="card-grid">
+                <article class="stat-card">
+                    <p class="stat-card__label">Scans saved</p>
+                    <strong id="scanCountValue">0</strong>
+                </article>
+                <article class="stat-card">
+                    <p class="stat-card__label">History mode</p>
+                    <strong id="syncModeValue">Local only</strong>
+                </article>
+                <article class="stat-card">
+                    <p class="stat-card__label">Map destination</p>
+                    <strong id="homeDestinationValue">Waiting for QR</strong>
+                </article>
+            </div>
+
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Quick actions</p>
+                        <h3>Choose the next step</h3>
+                    </div>
+                </div>
+                <div class="quick-actions">
+                    <button class="primary-btn" type="button" data-nav-section="scanner">Scan QR now</button>
+                    <button class="secondary-btn" type="button" data-nav-section="generate">Create a new QR</button>
+                    <button class="secondary-btn" type="button" data-nav-section="maps">Open map</button>
+                </div>
+            </div>
+
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Latest item</p>
+                        <h3>Most recent QR details</h3>
+                    </div>
+                </div>
+                <div id="homeLatestCard" class="empty-card">
+                    No QR item has been generated or scanned yet.
+                </div>
+            </div>
+        </section>
+
+        <!-- Map routing and pinned QR destination -->
+        <section id="mapsSection" class="section-panel" data-panel="maps">
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Destination map</p>
+                        <h3>Item return route</h3>
+                    </div>
+                    <a id="googleMapsLink" class="text-link is-disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">Open in Google Maps</a>
+                </div>
+
+                <div class="route-grid">
+                    <article class="route-card">
+                        <span>Distance</span>
+                        <strong id="distanceValue">Waiting for route</strong>
+                    </article>
+                    <article class="route-card">
+                        <span>Travel time</span>
+                        <strong id="durationValue">Waiting for route</strong>
+                    </article>
+                </div>
+
+                <div id="map" class="map-frame" aria-label="Interactive map"></div>
+
+                <div class="map-note-card">
+                    <p class="map-note-card__title">Advice</p>
+                    <p>Better call the owner or send it to nearby police station if owner can't be contacted.</p>
+                </div>
+            </div>
+
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Pinned QR data</p>
+                        <h3>Current map item</h3>
+                    </div>
+                </div>
+                <div id="mapItemDetails" class="empty-card">
+                    Scan or generate a QR code to pin the saved address here.
+                </div>
+            </div>
+        </section>
+
+        <!-- Camera and image-based QR scanning -->
+        <section id="scannerSection" class="section-panel" data-panel="scanner">
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Scanner</p>
+                        <h3>Read a lost &amp; found QR</h3>
+                    </div>
+                </div>
+
+                <div class="scanner-actions">
+                    <button id="startScannerBtn" class="primary-btn" type="button">Open camera</button>
+                    <button id="stopScannerBtn" class="secondary-btn" type="button">Stop camera</button>
+                    <button id="uploadQrBtn" class="secondary-btn" type="button">Upload QR image</button>
+                    <input id="qrFileInput" type="file" accept="image/*" hidden>
+                </div>
+
+                <div id="reader" class="reader-frame"></div>
+                <p id="scannerHint" class="helper-text">Allow camera permission or upload an image containing the QR code.</p>
+            </div>
+
+            <div id="scanResultCard" class="stack-card is-hidden">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Scan result</p>
+                        <h3>Decoded owner information</h3>
+                    </div>
+                </div>
+                <div id="scanResultContent"></div>
+            </div>
+        </section>
+
+        <!-- Lost-and-found QR generation form -->
+        <section id="generateSection" class="section-panel" data-panel="generate">
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Generate QR</p>
+                        <h3>Create a return label</h3>
+                    </div>
+                </div>
+
+                <form id="generateForm" class="form-grid">
+                    <label class="field">
+                        <span>Name (optional)</span>
+                        <input id="nameInput" name="name" type="text" placeholder="Owner name">
+                    </label>
+                    <label class="field field--full">
+                        <span>Address</span>
+                        <textarea id="addressInput" name="address" rows="3" placeholder="Full address for the item return" required></textarea>
+                    </label>
+                    <label class="field">
+                        <span>Phone number</span>
+                        <input id="phoneInput" name="phone" type="tel" placeholder="+60 12-345 6789">
+                    </label>
+                    <label class="field">
+                        <span>Email</span>
+                        <input id="emailInput" name="email" type="email" placeholder="owner@email.com">
+                    </label>
+                    <label class="field field--full">
+                        <span>Remarks (optional)</span>
+                        <textarea id="remarksInput" name="remarks" rows="3" placeholder="Reward note, item description, or handling advice"></textarea>
+                    </label>
+                    <div class="form-actions field--full">
+                        <button id="generateBtn" class="primary-btn" type="submit">Generate QR</button>
+                        <p class="helper-text">Name and remarks can be blank. Address is required. Add phone or email so the finder can contact you.</p>
+                    </div>
+                </form>
+            </div>
+
+            <div id="generatedCard" class="stack-card is-hidden">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Generated result</p>
+                        <h3>Download and attach this QR</h3>
+                    </div>
+                </div>
+
+                <div class="generated-layout">
+                    <div id="qrcode" class="qr-output" aria-label="Generated QR code"></div>
+                    <div class="generated-meta">
+                        <div id="generatedSummary" class="detail-card"></div>
+                        <div class="generated-actions">
+                            <button id="downloadQrBtn" class="primary-btn" type="button">Download QR</button>
+                            <button id="copyPayloadBtn" class="secondary-btn" type="button">Copy QR data</button>
+                            <button id="viewMapBtn" class="secondary-btn" type="button">View on map</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stored scan history -->
+        <section id="historySection" class="section-panel" data-panel="history">
+            <div class="stack-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">History</p>
+                        <h3>Scanned QR records</h3>
+                    </div>
+                </div>
+                <p class="helper-text">Each record stores the QR-code ID, item name, scan date/time, and your current address at the moment of scanning.</p>
+                <div id="historyList" class="history-list"></div>
+            </div>
+        </section>
+
+        <!-- Static informational sections -->
+        <section id="aboutSection" class="section-panel" data-panel="about">
+            <div class="stack-card prose-card">
+                <p class="eyebrow">About us</p>
+                <h3>Built for honest, fast returns</h3>
+                <p>KindReturn QR helps a finder reach the owner quickly by combining contact details, map guidance, and a mobile-friendly scan flow in one lightweight web app.</p>
+                <p>The app is designed for simple deployment on Vercel with optional Supabase storage for scan history.</p>
+            </div>
+        </section>
+
+        <section id="contactSection" class="section-panel" data-panel="contact">
+            <div class="stack-card prose-card">
+                <p class="eyebrow">Contact us</p>
+                <h3>Support channel placeholders</h3>
+                <p>Email: <a class="text-link" href="mailto:support@kindreturn.example">support@kindreturn.example</a></p>
+                <p>Phone: <a class="text-link" href="tel:+60000000000">+60 00-000 0000</a></p>
+                <p>Replace these placeholders with your real organization details before deployment.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Mobile-first primary navigation -->
+    <nav class="footer-nav" aria-label="Bottom navigation">
+        <button class="footer-link is-active" type="button" data-nav-section="home">
+            <span class="footer-link__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 10.5 12 3l9 7.5"></path>
+                    <path d="M6.75 9.75V21h10.5V9.75"></path>
+                    <path d="M10 21v-5h4v5"></path>
+                </svg>
+            </span>
+            <span class="footer-link__label">Home</span>
+        </button>
+        <button class="footer-link" type="button" data-nav-section="maps">
+            <span class="footer-link__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11Z"></path>
+                    <circle cx="12" cy="10" r="2.2"></circle>
+                </svg>
+            </span>
+            <span class="footer-link__label">Maps</span>
+        </button>
+        <button class="footer-link footer-link--scanner" type="button" data-nav-section="scanner" aria-label="Open QR scanner">
+            <span class="footer-link__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 4H5a1 1 0 0 0-1 1v2"></path>
+                    <path d="M17 4h2a1 1 0 0 1 1 1v2"></path>
+                    <path d="M20 17v2a1 1 0 0 1-1 1h-2"></path>
+                    <path d="M4 17v2a1 1 0 0 0 1 1h2"></path>
+                    <path d="M8 12h8"></path>
+                    <path d="M9 9.5h6"></path>
+                    <path d="M9 14.5h6"></path>
+                </svg>
+            </span>
+            <span class="footer-link__label">Scan</span>
+        </button>
+        <button class="footer-link" type="button" data-nav-section="generate">
+            <span class="footer-link__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="6" height="6" rx="1.2"></rect>
+                    <rect x="14" y="4" width="6" height="6" rx="1.2"></rect>
+                    <rect x="4" y="14" width="6" height="6" rx="1.2"></rect>
+                    <path d="M14 14h2v2h-2z"></path>
+                    <path d="M18 14h2v6h-6v-2"></path>
+                </svg>
+            </span>
+            <span class="footer-link__label">Generate</span>
+        </button>
+        <button class="footer-link" type="button" data-nav-section="history">
+            <span class="footer-link__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 3-6.7"></path>
+                    <path d="M3 4v5h5"></path>
+                    <path d="M12 7v5l3 2"></path>
+                </svg>
+            </span>
+            <span class="footer-link__label">History</span>
+        </button>
+    </nav>
+
+    <!-- Confirmation modal for destructive history actions -->
+    <div id="deleteModal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+        <div class="modal__card">
+            <p class="eyebrow">Delete record</p>
+            <h3 id="deleteModalTitle">Remove this history item?</h3>
+            <p>This deletes the selected record from the app and from Supabase too if sync is enabled.</p>
+            <div class="modal__actions">
+                <button id="cancelDeleteBtn" class="secondary-btn" type="button">Cancel</button>
+                <button id="confirmDeleteBtn" class="danger-btn" type="button">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightweight transient feedback -->
+    <div id="toast" class="toast" aria-live="polite"></div>
+</body>
+</html>
