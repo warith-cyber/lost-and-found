@@ -216,6 +216,15 @@
                         <textarea id="addressInput" name="address" rows="3" placeholder="Full address for the item return" required></textarea>
                     </label>
                     <label class="field">
+                        <span>Latitude</span>
+                        <input id="latitudeInput" name="latitude" type="number" step="any" inputmode="decimal" placeholder="Auto-filled from address">
+                    </label>
+                    <label class="field">
+                        <span>Longitude</span>
+                        <input id="longitudeInput" name="longitude" type="number" step="any" inputmode="decimal" placeholder="Auto-filled from address">
+                    </label>
+                    <p id="coordinateHint" class="helper-text field--full">Coordinates auto-fill from the address. You can adjust them manually before generating.</p>
+                    <label class="field">
                         <span>Phone number</span>
                         <input id="phoneInput" name="phone" type="tel" placeholder="+60 12-345 6789">
                     </label>
